@@ -9,6 +9,7 @@ android {
 
 dependencies {
     implementation(project(":core:database"))
+    implementation(project(":core:ai"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
 }

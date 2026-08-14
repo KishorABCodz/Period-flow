@@ -11,5 +11,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:domain"))
     implementation(project(":core:health-analysis"))
+    implementation(project(":core:ai"))
+    implementation(libs.activity.compose)
     implementation(libs.kotlinx.datetime)
 }

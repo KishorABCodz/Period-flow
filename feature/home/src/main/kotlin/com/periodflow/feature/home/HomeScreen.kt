@@ -7,10 +7,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -24,6 +26,7 @@ import com.periodflow.core.ui.components.CycleRing
 import com.periodflow.core.ui.components.PredictionCard
 import com.periodflow.core.ui.components.AdaptiveSupportingPaneScaffold
 import com.periodflow.core.ui.theme.*
+import com.periodflow.feature.home.chat.CycleChatSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,20 +35,40 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showChat by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         floatingActionButton = {
-            ClayButton(
-                onClick = { onNavigateToLog(uiState.todayEpochDay) },
-                backgroundColor = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(16.dp).height(56.dp).width(160.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(16.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Ask Bloom (Gemini) — small secondary FAB
+                ClayButton(
+                    onClick = { showChat = true },
+                    backgroundColor = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(52.dp),
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Log today", tint = MaterialTheme.colorScheme.onPrimary)
-                    Text("Log Today", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = "Ask Bloom (Cycle Chat)",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+
+                ClayButton(
+                    onClick = { onNavigateToLog(uiState.todayEpochDay) },
+                    backgroundColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.height(56.dp).width(160.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = "Log today", tint = MaterialTheme.colorScheme.onPrimary)
+                        Text("Log Today", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         },
@@ -73,7 +96,7 @@ fun HomeScreen(
                     if (uiState.companionMessage.isNotEmpty()) {
                         ClayCard(
                             modifier = Modifier.fillMaxWidth(),
-                            backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                            backgroundColor = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Row(
                                 modifier = Modifier.padding(20.dp),
@@ -90,12 +113,12 @@ fun HomeScreen(
                                     Text(
                                         text = "Your Companion",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.secondary,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     )
                                     Text(
                                         text = uiState.companionMessage,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     )
                                 }
                             }
@@ -258,6 +281,10 @@ fun HomeScreen(
                 }
             }
         )
+    }
+
+    if (showChat) {
+        CycleChatSheet(onDismiss = { showChat = false })
     }
 }
 

@@ -3,8 +3,11 @@ package com.periodflow.feature.log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.periodflow.core.ai.model.AiResult
+import com.periodflow.core.ai.repository.GeminiAiRepository
 import com.periodflow.core.common.toLocalDate
 import com.periodflow.core.domain.model.*
+import com.periodflow.core.domain.usecase.GetCurrentPhaseUseCase
 import com.periodflow.core.domain.usecase.LogCycleDayUseCase
 import com.periodflow.core.domain.repository.CycleDayRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +27,9 @@ data class LogUiState(
     val ovulationTestResult: OvulationTestResult? = null,
     val isSaved: Boolean = false,
     val isLoading: Boolean = false,
+    // Symptom explainer (AI)
+    val explainerOpenFor: Symptom? = null,
+    val explainerResult: AiResult<String> = AiResult.Idle,
 )
 
 @HiltViewModel
@@ -31,6 +37,8 @@ class LogViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val logCycleDayUseCase: LogCycleDayUseCase,
     private val cycleDayRepository: CycleDayRepository,
+    private val getCurrentPhaseUseCase: GetCurrentPhaseUseCase,
+    private val geminiAiRepository: GeminiAiRepository,
 ) : ViewModel() {
 
     private val dateEpochDay: Long = savedStateHandle.get<Long>("dateEpochDay") ?: 0L
@@ -99,6 +107,20 @@ class LogViewModel @Inject constructor(
         _uiState.update { 
             it.copy(ovulationTestResult = if (it.ovulationTestResult == result) null else result) 
         }
+    }
+
+    fun openSymptomExplainer(symptom: Symptom) {
+        _uiState.update { it.copy(explainerOpenFor = symptom, explainerResult = AiResult.Loading) }
+        viewModelScope.launch {
+            val (phase, _) = runCatching { getCurrentPhaseUseCase() }
+                .getOrDefault(CyclePhase.UNKNOWN to 0)
+            val result = geminiAiRepository.explainSymptom(symptom, phase)
+            _uiState.update { it.copy(explainerResult = result) }
+        }
+    }
+
+    fun closeSymptomExplainer() {
+        _uiState.update { it.copy(explainerOpenFor = null, explainerResult = AiResult.Idle) }
     }
 
     fun save() {

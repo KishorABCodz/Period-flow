@@ -37,6 +37,7 @@ include(":core:security")
 include(":core:export")
 include(":core:notifications")
 include(":core:network")
+include(":core:ai")
 
 // Feature modules
 include(":feature:home")

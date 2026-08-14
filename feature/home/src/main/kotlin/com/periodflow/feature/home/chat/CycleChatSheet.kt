@@ -1,0 +1,347 @@
+package com.periodflow.feature.home.chat
+
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MicNone
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.periodflow.core.ai.voice.VoiceCompanionEvent
+import com.periodflow.core.ui.components.ClayButton
+import com.periodflow.core.ui.components.claymorphism
+import com.periodflow.feature.home.chat.voice.BloomTts
+import com.periodflow.feature.home.chat.voice.VoiceInputController
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CycleChatSheet(
+    onDismiss: () -> Unit,
+    viewModel: CycleChatViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurfaceVariant) },
+    ) {
+        ChatContent(
+            state = uiState,
+            voiceEvents = viewModel.voiceEvents,
+            onSendText = viewModel::sendMessage,
+            onSendVoice = viewModel::sendVoiceMessage,
+            onClearError = viewModel::clearError,
+            onClearHistory = viewModel::clearHistory,
+        )
+    }
+}
+
+@Composable
+private fun ChatContent(
+    state: CycleChatUiState,
+    voiceEvents: kotlinx.coroutines.flow.SharedFlow<VoiceCompanionEvent>,
+    onSendText: (String) -> Unit,
+    onSendVoice: (String) -> Unit,
+    onClearError: () -> Unit,
+    onClearHistory: () -> Unit,
+) {
+    var draft by rememberSaveable { mutableStateOf("") }
+    var voiceMode by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // TTS engine — reused across sheet lifetime.
+    val bloomTts = remember { BloomTts(context) }
+    DisposableEffect(Unit) {
+        onDispose { bloomTts.shutdown() }
+    }
+
+    // Speak the voice orchestrator's fast + slow events when voice mode is on.
+    LaunchedEffect(voiceMode) {
+        if (!voiceMode) return@LaunchedEffect
+        voiceEvents.collect { event ->
+            when (event) {
+                is VoiceCompanionEvent.FastGreeting -> bloomTts.speakFiller(event.text)
+                is VoiceCompanionEvent.FastThinking -> bloomTts.speakFiller(event.text)
+                is VoiceCompanionEvent.SlowDone -> bloomTts.speakAnswer(event.fullText)
+                else -> Unit
+            }
+        }
+    }
+
+    // Voice input state
+    var isListening by remember { mutableStateOf(false) }
+    var voiceError by remember { mutableStateOf<String?>(null) }
+
+    val voiceController = remember {
+        VoiceInputController(
+            context = context,
+            onPartial = { partial -> draft = partial },
+            onFinal = { finalText -> draft = finalText },
+            onError = { msg -> voiceError = msg },
+            onStateChanged = { listening -> isListening = listening },
+        )
+    }
+
+    // Release the platform recognizer when the sheet leaves composition.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) voiceController.stop()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            voiceController.release()
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) voiceController.start()
+        else voiceError = "Microphone permission is required to talk to Bloom."
+    }
+
+    fun toggleMic() {
+        voiceError = null
+        if (isListening) voiceController.stop()
+        else if (voiceController.hasPermission()) voiceController.start()
+        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text) {
+        if (state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(state.messages.size - 1)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().heightIn(min = 400.dp, max = 640.dp)) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+            )
+            Text(
+                text = "Bloom · Cycle Chat",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    voiceMode = !voiceMode
+                    if (!voiceMode) bloomTts.stop()
+                },
+            ) {
+                Icon(
+                    imageVector = if (voiceMode) Icons.Rounded.RecordVoiceOver else Icons.Rounded.VolumeOff,
+                    contentDescription = if (voiceMode) "Voice mode on" else "Voice mode off",
+                    tint = if (voiceMode) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onClearHistory) {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteSweep,
+                    contentDescription = "Clear chat history",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+        // Error banner
+        state.errorMessage?.let { err ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = err,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onClearError) {
+                    Text(text = "Dismiss", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+
+        // Messages
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(vertical = 12.dp),
+        ) {
+            items(state.messages, key = { it.id }) { msg ->
+                ChatBubble(msg)
+            }
+        }
+
+        // Voice error banner
+        voiceError?.let { err ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = err,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { voiceError = null }) {
+                    Text(text = "OK", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+
+        // Composer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .navigationBarsPadding()
+                .imePadding(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.weight(1f),
+                placeholder = {
+                    Text(
+                        text = if (isListening) "Listening…" else "Ask about your cycle…",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                shape = RoundedCornerShape(28.dp),
+                enabled = !state.isSending,
+                maxLines = 4,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+            // Mic button
+            if (voiceController.isAvailable) {
+                ClayButton(
+                    onClick = { toggleMic() },
+                    backgroundColor = if (isListening) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                ) {
+                    Icon(
+                        imageVector = when {
+                            isListening -> Icons.Rounded.Stop
+                            draft.isBlank() -> Icons.Rounded.MicNone
+                            else -> Icons.Rounded.Mic
+                        },
+                        contentDescription = if (isListening) "Stop listening" else "Speak to Bloom",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+            // Send button
+            ClayButton(
+                onClick = {
+                    val toSend = draft
+                    draft = ""
+                    if (voiceMode) onSendVoice(toSend) else onSendText(toSend)
+                },
+                backgroundColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(56.dp),
+                shape = RoundedCornerShape(28.dp),
+            ) {
+                if (state.isSending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Send,
+                        contentDescription = "Send",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatBubble(msg: ChatMessage) {
+    val isUser = msg.isUser
+    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimary
+    else MaterialTheme.colorScheme.onSurface
+    val shape = if (isUser)
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
+    else
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .claymorphism(backgroundColor = bubbleColor, shape = shape, elevation = 4.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            val caret = if (msg.isStreaming) " ▍" else ""
+            Text(
+                text = msg.text + caret,
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor,
+                fontWeight = if (isUser) FontWeight.Medium else FontWeight.Normal,
+            )
+        }
+    }
+}

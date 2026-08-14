@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.periodflow.core.ui.components
 
 import androidx.compose.foundation.background
@@ -16,6 +18,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +30,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.luminance
+
+/**
+ * Returns an accessible content color for a given surface color by comparing luminance.
+ * Uses on-primary for dark surfaces and on-surface for light surfaces to guarantee contrast.
+ */
+@androidx.compose.runtime.Composable
+private fun contentColorFor(background: Color): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (background.luminance() < 0.5f) scheme.onPrimary else scheme.onSurface
+}
 
 /**
  * Minimal claymorphism modifier.
@@ -116,7 +130,7 @@ fun ClayButton(
         contentAlignment = androidx.compose.ui.Alignment.Center
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+            androidx.compose.material3.LocalContentColor provides contentColorFor(backgroundColor)
         ) {
             content()
         }
@@ -128,6 +142,7 @@ fun ClayChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     activeColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
     inactiveColor: Color = androidx.compose.material3.MaterialTheme.colorScheme.surface,
     shape: Shape = RoundedCornerShape(50), // Lozenge/pill shape for chips
@@ -157,6 +172,21 @@ fun ClayChip(
         label = "chip_color"
     )
 
+    val clickModifier: Modifier = if (onLongClick != null) {
+        Modifier.combinedClickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+            onLongClick = onLongClick,
+        )
+    } else {
+        Modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
+    }
+
     androidx.compose.foundation.layout.Row(
         modifier = modifier
             .scale(scale)
@@ -165,11 +195,7 @@ fun ClayChip(
                 shape = shape,
                 elevation = elevation,
             )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+            .then(clickModifier)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center

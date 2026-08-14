@@ -2,6 +2,7 @@ package com.periodflow.feature.settings
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -199,9 +202,9 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ═══════════════════════════════════════════
+        // Developer Tools
         Text(
-            text = "🛠️ Developer Tools",
+            text = "Developer Tools",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.secondary,
         )
@@ -236,10 +239,10 @@ fun SettingsScreen(
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(text = "🟢", style = MaterialTheme.typography.bodyMedium)
+                            StatusDot(color = MaterialTheme.colorScheme.tertiary)
                             Text(
                                 text = "Database has data",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -254,10 +257,10 @@ fun SettingsScreen(
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(text = "⚪", style = MaterialTheme.typography.bodyMedium)
+                            StatusDot(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 text = "Database is empty",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -384,6 +387,14 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(180.dp))
+    }
+}
+
+@Composable
+private fun StatusDot(color: Color) {
+    Canvas(modifier = Modifier.size(10.dp)) {
+        drawCircle(color = color, radius = size.minDimension / 2f, center = Offset(size.width / 2f, size.height / 2f))
+        drawCircle(color = Color.White.copy(alpha = 0.35f), radius = size.minDimension / 4f, center = Offset(size.width / 3f, size.height / 3f))
     }
 }
 

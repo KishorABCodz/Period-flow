@@ -1,0 +1,7 @@
+# PeriodFlow — Local properties (DO NOT COMMIT)
+#
+# 1. Copy this file to `local.properties` (already in .gitignore).
+# 2. Paste your Gemini API key below.
+#    Get one free at: https://aistudio.google.com/apikey
+#
+# GEMINI_API_KEY=your_key_here

@@ -11,9 +11,14 @@ sealed interface ExportResult {
 }
 
 interface ReportExporter {
+    /**
+     * @param aiNarrative optional Gemini-generated personalised narrative; rendered
+     *                    inside the PDF right after the deterministic analysis.
+     */
     suspend fun generatePdfReport(
         cycles: List<Cycle>,
         days: List<CycleDay>,
-        analysis: HealthAnalysisReport?
+        analysis: HealthAnalysisReport?,
+        aiNarrative: String? = null,
     ): ExportResult
 }

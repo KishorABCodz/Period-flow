@@ -21,6 +21,7 @@ fun SymptomChipGrid(
     symptoms: List<SymptomOption>,
     onToggle: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onExplain: ((Int) -> Unit)? = null,
 ) {
     // Use FlowRow for wrapping chips
     @OptIn(ExperimentalLayoutApi::class)
@@ -33,6 +34,7 @@ fun SymptomChipGrid(
             ClayChip(
                 selected = symptom.isSelected,
                 onClick = { onToggle(index) },
+                onLongClick = onExplain?.let { { it(index) } },
                 activeColor = MaterialTheme.colorScheme.secondary,
                 inactiveColor = MaterialTheme.colorScheme.surfaceVariant
             ) {

@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.periodflow.core.database.PeriodFlowDatabase
 import com.periodflow.core.database.dao.CycleDayDao
 import com.periodflow.core.database.dao.CycleDao
+import com.periodflow.core.database.dao.AiInsightDao
+import com.periodflow.core.database.dao.ChatMessageDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -38,5 +40,15 @@ object DatabaseModule {
     @Provides
     fun provideCycleDao(database: PeriodFlowDatabase): CycleDao {
         return database.cycleDao()
+    }
+
+    @Provides
+    fun provideAiInsightDao(database: PeriodFlowDatabase): AiInsightDao {
+        return database.aiInsightDao()
+    }
+
+    @Provides
+    fun provideChatMessageDao(database: PeriodFlowDatabase): ChatMessageDao {
+        return database.chatMessageDao()
     }
 }

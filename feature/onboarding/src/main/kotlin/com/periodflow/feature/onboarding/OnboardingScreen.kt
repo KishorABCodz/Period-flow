@@ -1,6 +1,7 @@
 package com.periodflow.feature.onboarding
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -64,11 +65,24 @@ fun OnboardingScreen(
                     Spacer(modifier = Modifier.width(64.dp))
                 }
 
-                Text(
-                    text = "Step ${uiState.currentStep} of 3",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    repeat(3) { index ->
+                        val active = index < uiState.currentStep
+                        Box(
+                            modifier = Modifier
+                                .height(8.dp)
+                                .width(if (active) 32.dp else 12.dp)
+                                .background(
+                                    color = if (active) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+                                )
+                        )
+                    }
+                }
 
                 ClayButton(
                     onClick = { viewModel.nextStep() },

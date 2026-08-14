@@ -20,8 +20,10 @@ import com.periodflow.core.domain.model.FlowIntensity
 import com.periodflow.core.domain.model.Mood
 import com.periodflow.core.domain.model.Symptom
 import com.periodflow.core.domain.model.OvulationTestResult
+import com.periodflow.core.ai.model.AiResult
 import com.periodflow.core.ui.components.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.rounded.AutoAwesome
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +105,11 @@ fun LogScreen(
 
             // Symptoms section
             SectionHeader(title = "Symptoms", icon = null)
+            Text(
+                text = "Tip: long-press any symptom for an AI explanation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             SymptomChipGrid(
                 symptoms = Symptom.entries.map { symptom ->
                     SymptomOption(
@@ -112,6 +119,7 @@ fun LogScreen(
                     )
                 },
                 onToggle = { viewModel.onSymptomToggled(Symptom.entries[it]) },
+                onExplain = { viewModel.openSymptomExplainer(Symptom.entries[it]) },
             )
 
             // Ovulation Test Result
@@ -175,6 +183,97 @@ fun LogScreen(
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    // AI Symptom Explainer bottom sheet
+    val explainerSymptom = uiState.explainerOpenFor
+    if (explainerSymptom != null) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.closeSymptomExplainer() },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        ) {
+            SymptomExplainerContent(
+                symptomName = explainerSymptom.displayName,
+                state = uiState.explainerResult,
+                onRetry = { viewModel.openSymptomExplainer(explainerSymptom) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SymptomExplainerContent(
+    symptomName: String,
+    state: AiResult<String>,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+            )
+            Text(
+                text = symptomName,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        when (state) {
+            AiResult.Idle,
+            AiResult.Loading -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        text = "Asking Gemini for a gentle explanation…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            is AiResult.Success -> {
+                Text(
+                    text = state.value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            is AiResult.Error -> {
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                ClayButton(
+                    onClick = onRetry,
+                    backgroundColor = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.height(44.dp).widthIn(min = 140.dp),
+                ) {
+                    Text(
+                        text = "Try again",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
         }
     }
 }
