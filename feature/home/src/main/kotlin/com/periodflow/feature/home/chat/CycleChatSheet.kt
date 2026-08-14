@@ -43,6 +43,10 @@ fun CycleChatSheet(
     viewModel: CycleChatViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val voiceModeEnabled by viewModel.voiceModeEnabled.collectAsStateWithLifecycle()
+    val currentEmotion by viewModel.currentEmotion.collectAsStateWithLifecycle()
+    val hasGemmaModel by viewModel.hasGemmaModel.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -54,8 +58,15 @@ fun CycleChatSheet(
         ChatContent(
             state = uiState,
             voiceEvents = viewModel.voiceEvents,
+            voiceModeEnabled = voiceModeEnabled,
+            currentEmotion = currentEmotion,
+            hasGemmaModel = hasGemmaModel,
+            downloadProgress = downloadProgress,
             onSendText = viewModel::sendMessage,
             onSendVoice = viewModel::sendVoiceMessage,
+            onToggleVoiceMode = viewModel::setVoiceModeEnabled,
+            onStartModelDownload = { viewModel.startModelDownload() },
+            onDismissDownload = viewModel::dismissDownloadState,
             onClearError = viewModel::clearError,
             onClearHistory = viewModel::clearHistory,
         )
@@ -66,31 +77,35 @@ fun CycleChatSheet(
 private fun ChatContent(
     state: CycleChatUiState,
     voiceEvents: kotlinx.coroutines.flow.SharedFlow<VoiceCompanionEvent>,
+    voiceModeEnabled: Boolean,
+    currentEmotion: com.periodflow.core.ai.voice.BloomEmotion,
+    hasGemmaModel: Boolean,
+    downloadProgress: com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress?,
     onSendText: (String) -> Unit,
     onSendVoice: (String) -> Unit,
+    onToggleVoiceMode: (Boolean) -> Unit,
+    onStartModelDownload: () -> Unit,
+    onDismissDownload: () -> Unit,
     onClearError: () -> Unit,
     onClearHistory: () -> Unit,
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
-    var voiceMode by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // TTS engine — reused across sheet lifetime.
+    // TTS engine — reused across sheet lifetime, emotion-aware.
     val bloomTts = remember { BloomTts(context) }
-    DisposableEffect(Unit) {
-        onDispose { bloomTts.shutdown() }
-    }
+    DisposableEffect(Unit) { onDispose { bloomTts.shutdown() } }
 
     // Speak the voice orchestrator's fast + slow events when voice mode is on.
-    LaunchedEffect(voiceMode) {
-        if (!voiceMode) return@LaunchedEffect
+    LaunchedEffect(voiceModeEnabled) {
+        if (!voiceModeEnabled) return@LaunchedEffect
         voiceEvents.collect { event ->
             when (event) {
-                is VoiceCompanionEvent.FastGreeting -> bloomTts.speakFiller(event.text)
-                is VoiceCompanionEvent.FastThinking -> bloomTts.speakFiller(event.text)
-                is VoiceCompanionEvent.SlowDone -> bloomTts.speakAnswer(event.fullText)
+                is VoiceCompanionEvent.FastGreeting -> bloomTts.speakEmotive(event.text, event.emotion, isFiller = true)
+                is VoiceCompanionEvent.FastThinking -> bloomTts.speakEmotive(event.text, event.emotion, isFiller = true)
+                is VoiceCompanionEvent.SlowDone -> bloomTts.speakEmotive(event.fullText, event.emotion, isFiller = false)
                 else -> Unit
             }
         }
@@ -158,18 +173,25 @@ private fun ChatContent(
                 text = "Bloom · Cycle Chat",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
             )
+            Text(
+                text = currentEmotion.glyph,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+            Spacer(modifier = Modifier.weight(1f))
             IconButton(
                 onClick = {
-                    voiceMode = !voiceMode
-                    if (!voiceMode) bloomTts.stop()
+                    val next = !voiceModeEnabled
+                    onToggleVoiceMode(next)
+                    if (!next) bloomTts.stop()
+                    if (next && !hasGemmaModel) onStartModelDownload()
                 },
             ) {
                 Icon(
-                    imageVector = if (voiceMode) Icons.Rounded.RecordVoiceOver else Icons.Rounded.VolumeOff,
-                    contentDescription = if (voiceMode) "Voice mode on" else "Voice mode off",
-                    tint = if (voiceMode) MaterialTheme.colorScheme.tertiary
+                    imageVector = if (voiceModeEnabled) Icons.Rounded.RecordVoiceOver else Icons.Rounded.VolumeOff,
+                    contentDescription = if (voiceModeEnabled) "Voice mode on" else "Voice mode off",
+                    tint = if (voiceModeEnabled) MaterialTheme.colorScheme.tertiary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -180,6 +202,11 @@ private fun ChatContent(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+
+        // Gemma model download banner
+        downloadProgress?.let { progress ->
+            ModelDownloadBanner(progress = progress, onDismiss = onDismissDownload)
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))

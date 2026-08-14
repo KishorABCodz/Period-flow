@@ -35,6 +35,7 @@ class UserPreferencesDataStore @Inject constructor(
         val ACNE_SEVERITY = stringPreferencesKey("acne_severity")
         val HIRSUTISM_SEVERITY = stringPreferencesKey("hirsutism_severity")
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
+        val IS_VOICE_MODE_ENABLED = booleanPreferencesKey("is_voice_mode_enabled")
     }
 
     override val userPreferences: Flow<UserPreferences> = context.dataStore.data
@@ -62,6 +63,7 @@ class UserPreferencesDataStore @Inject constructor(
                 acneSeverity = preferences[Keys.ACNE_SEVERITY],
                 hirsutismSeverity = preferences[Keys.HIRSUTISM_SEVERITY],
                 isBiometricEnabled = preferences[Keys.IS_BIOMETRIC_ENABLED] ?: false,
+                isVoiceModeEnabled = preferences[Keys.IS_VOICE_MODE_ENABLED] ?: false,
             )
         }
 
@@ -143,5 +145,9 @@ class UserPreferencesDataStore @Inject constructor(
 
     override suspend fun setBiometricEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.IS_BIOMETRIC_ENABLED] = enabled }
+    }
+
+    override suspend fun setVoiceModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.IS_VOICE_MODE_ENABLED] = enabled }
     }
 }

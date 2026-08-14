@@ -14,6 +14,7 @@ data class UserPreferences(
     val acneSeverity: String? = null,
     val hirsutismSeverity: String? = null,
     val isBiometricEnabled: Boolean = false,
+    val isVoiceModeEnabled: Boolean = false,
 )
 
 interface UserPreferencesRepository {
@@ -29,4 +30,5 @@ interface UserPreferencesRepository {
     suspend fun setAcneSeverity(severity: String?)
     suspend fun setHirsutismSeverity(severity: String?)
     suspend fun setBiometricEnabled(enabled: Boolean)
+    suspend fun setVoiceModeEnabled(enabled: Boolean)
 }

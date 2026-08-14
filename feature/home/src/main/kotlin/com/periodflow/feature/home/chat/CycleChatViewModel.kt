@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -42,6 +44,9 @@ class CycleChatViewModel @Inject constructor(
     private val getRecentLogSummaryUseCase: GetRecentLogSummaryUseCase,
     private val chatHistoryRepository: ChatHistoryRepository,
     private val voiceCompanionOrchestrator: VoiceCompanionOrchestrator,
+    private val userPreferencesRepository: com.periodflow.core.domain.repository.UserPreferencesRepository,
+    private val gemmaModelManager: com.periodflow.core.ai.voice.GemmaModelManager,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CycleChatUiState())
@@ -50,6 +55,53 @@ class CycleChatViewModel @Inject constructor(
     /** One-shot events the UI observes for TTS playback in voice mode. */
     private val _voiceEvents = MutableSharedFlow<VoiceCompanionEvent>(extraBufferCapacity = 16)
     val voiceEvents: SharedFlow<VoiceCompanionEvent> = _voiceEvents.asSharedFlow()
+
+    /** Emitted as Bloom's current mood; the UI can bind an animated indicator to it. */
+    private val _currentEmotion = MutableStateFlow(com.periodflow.core.ai.voice.BloomEmotion.NEUTRAL)
+    val currentEmotion: StateFlow<com.periodflow.core.ai.voice.BloomEmotion> = _currentEmotion.asStateFlow()
+
+    /** Persisted voice-mode preference (DataStore-backed). */
+    val voiceModeEnabled: StateFlow<Boolean> = userPreferencesRepository.userPreferences
+        .map { it.isVoiceModeEnabled }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+
+    fun setVoiceModeEnabled(enabled: Boolean) {
+        viewModelScope.launch { userPreferencesRepository.setVoiceModeEnabled(enabled) }
+    }
+
+    // ---------- Gemma model download flow ----------
+
+    private val downloader by lazy {
+        com.periodflow.feature.home.chat.voice.ModelDownloader(appContext, gemmaModelManager)
+    }
+
+    private val _hasGemmaModel = MutableStateFlow(gemmaModelManager.isModelPresent())
+    val hasGemmaModel: StateFlow<Boolean> = _hasGemmaModel.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow<com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress?>(null)
+    val downloadProgress: StateFlow<com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress?> = _downloadProgress.asStateFlow()
+
+    fun startModelDownload(urlOverride: String? = null) {
+        viewModelScope.launch {
+            downloader.download(urlOverride).collect { p ->
+                _downloadProgress.value = p
+                if (p is com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress.Success) {
+                    _hasGemmaModel.value = true
+                }
+            }
+        }
+    }
+
+    fun dismissDownloadState() {
+        _downloadProgress.value = null
+    }
+
+    fun purgeGemmaModel() {
+        viewModelScope.launch {
+            downloader.purgeModel()
+            _hasGemmaModel.value = false
+        }
+    }
 
     private var streamJob: Job? = null
     // Local, non-persisted ids for the currently streaming placeholder.
@@ -202,6 +254,7 @@ class CycleChatViewModel @Inject constructor(
                     recent = recent,
                 ).collect { event ->
                     _voiceEvents.tryEmit(event)
+                    _currentEmotion.value = event.emotion
                     when (event) {
                         is VoiceCompanionEvent.SlowDelta -> {
                             buffer.append(event.text)

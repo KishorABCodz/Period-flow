@@ -7,6 +7,7 @@ import com.periodflow.core.database.dao.CycleDayDao
 import com.periodflow.core.database.dao.CycleDao
 import com.periodflow.core.database.dao.AiInsightDao
 import com.periodflow.core.database.dao.ChatMessageDao
+import com.periodflow.core.database.migration.PeriodFlowMigrations
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,7 +29,7 @@ object DatabaseModule {
             PeriodFlowDatabase::class.java,
             "periodflow_database",
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(*PeriodFlowMigrations.ALL)
             .build()
     }
 

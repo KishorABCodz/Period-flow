@@ -35,6 +35,9 @@ coil = "2.6.0"
 # AI / Gemini
 gemini-generativeai = "0.9.0"
 
+# MediaPipe LLM Inference (on-device Gemma-2 fast provider)
+mediapipe-tasks-genai = "0.10.16"
+
 # Charts
 vico = "2.1.0"
 
@@ -110,6 +113,9 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 
 # AI / Gemini (Google Generative AI Kotlin SDK)
 gemini-generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "gemini-generativeai" }
+
+# MediaPipe LLM Inference (Android on-device LLM runtime — Gemma / Phi / etc.)
+mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "mediapipe-tasks-genai" }
 
 # Coroutines (explicit alias so non-hilt modules can depend on it)
 kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
