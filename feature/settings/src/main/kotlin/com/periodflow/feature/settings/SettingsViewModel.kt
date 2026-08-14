@@ -2,12 +2,19 @@ package com.periodflow.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.periodflow.core.ai.voice.GemmaModelManager
 import com.periodflow.core.domain.repository.DataSeeder
 import com.periodflow.core.domain.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class VoiceModelStatus(
+    val isDownloaded: Boolean = false,
+    val fileSizeBytes: Long = 0L,
+    val configuredUrl: String? = null,
+)
 
 data class SettingsUiState(
     val defaultCycleLength: Int = 28,
@@ -16,6 +23,7 @@ data class SettingsUiState(
     val heightCm: Float? = null,
     val hasPolycysticOvaries: Boolean? = null,
     val isBiometricEnabled: Boolean = false,
+    val voiceModel: VoiceModelStatus = VoiceModelStatus(),
     // Dev tools state
     val hasData: Boolean = false,
     val isSeedingData: Boolean = false,
@@ -27,6 +35,7 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val prefsRepository: UserPreferencesRepository,
     private val dataSeeder: DataSeeder,
+    private val gemmaModelManager: GemmaModelManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -48,6 +57,27 @@ class SettingsViewModel @Inject constructor(
             }
         }
         checkHasData()
+        refreshVoiceModelStatus()
+    }
+
+    fun refreshVoiceModelStatus() {
+        val file = gemmaModelManager.modelFile
+        _uiState.update {
+            it.copy(
+                voiceModel = VoiceModelStatus(
+                    isDownloaded = gemmaModelManager.isModelPresent(),
+                    fileSizeBytes = if (file.exists()) file.length() else 0L,
+                    configuredUrl = gemmaModelManager.configuredUrl,
+                )
+            )
+        }
+    }
+
+    fun removeVoiceModel() {
+        viewModelScope.launch {
+            gemmaModelManager.deleteModel()
+            refreshVoiceModelStatus()
+        }
     }
 
     fun onCycleLengthChanged(days: Int) {

@@ -10,10 +10,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicNone
 import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.VolumeOff
@@ -47,6 +49,7 @@ fun CycleChatSheet(
     val currentEmotion by viewModel.currentEmotion.collectAsStateWithLifecycle()
     val hasGemmaModel by viewModel.hasGemmaModel.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val pendingMeteredConfirm by viewModel.pendingMeteredConfirm.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -65,10 +68,34 @@ fun CycleChatSheet(
             onSendText = viewModel::sendMessage,
             onSendVoice = viewModel::sendVoiceMessage,
             onToggleVoiceMode = viewModel::setVoiceModeEnabled,
-            onStartModelDownload = { viewModel.startModelDownload() },
+            onStartModelDownload = viewModel::requestModelDownload,
             onDismissDownload = viewModel::dismissDownloadState,
             onClearError = viewModel::clearError,
             onClearHistory = viewModel::clearHistory,
+        )
+    }
+
+    // Metered network confirmation dialog
+    if (pendingMeteredConfirm) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelMeteredDownload,
+            title = { Text("Use cellular data?") },
+            text = {
+                Text(
+                    "Bloom's voice model is ~1.4 GB. You're on a metered connection. " +
+                        "Download now, or wait until you're on Wi-Fi?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmMeteredDownload) {
+                    Text("Download now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelMeteredDownload) {
+                    Text("Wait for Wi-Fi")
+                }
+            },
         )
     }
 }
@@ -90,6 +117,8 @@ private fun ChatContent(
     onClearHistory: () -> Unit,
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -164,22 +193,25 @@ private fun ChatContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
+            BloomAvatar(
+                emotion = currentEmotion,
+                modifier = Modifier.size(32.dp),
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Bloom · Cycle Chat",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            Text(
-                text = currentEmotion.glyph,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 4.dp),
-            )
             Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) searchQuery = "" }) {
+                Icon(
+                    imageVector = if (searchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
+                    contentDescription = if (searchOpen) "Close search" else "Search chat",
+                    tint = if (searchOpen) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             IconButton(
                 onClick = {
                     val next = !voiceModeEnabled
@@ -209,6 +241,39 @@ private fun ChatContent(
             ModelDownloadBanner(progress = progress, onDismiss = onDismissDownload)
         }
 
+        // Inline search field
+        if (searchOpen) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                placeholder = {
+                    Text(
+                        text = "Search Bloom conversations…",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.tertiary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    cursorColor = MaterialTheme.colorScheme.tertiary,
+                ),
+            )
+        }
+
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
         // Error banner
@@ -231,14 +296,29 @@ private fun ChatContent(
         }
 
         // Messages
+        val visibleMessages = remember(state.messages, searchQuery) {
+            if (searchQuery.isBlank()) state.messages
+            else state.messages.filter { it.text.contains(searchQuery, ignoreCase = true) }
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
         ) {
-            items(state.messages, key = { it.id }) { msg ->
-                ChatBubble(msg)
+            if (visibleMessages.isEmpty() && searchQuery.isNotBlank()) {
+                item {
+                    Text(
+                        text = "No matches for \"$searchQuery\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            } else {
+                items(visibleMessages, key = { it.id }) { msg ->
+                    ChatBubble(msg, highlight = searchQuery.takeIf { it.isNotBlank() })
+                }
             }
         }
 
@@ -341,7 +421,7 @@ private fun ChatContent(
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessage) {
+private fun ChatBubble(msg: ChatMessage, highlight: String? = null) {
     val isUser = msg.isUser
     val bubbleColor = if (isUser) MaterialTheme.colorScheme.primary
     else MaterialTheme.colorScheme.surfaceVariant
@@ -351,6 +431,12 @@ private fun ChatBubble(msg: ChatMessage) {
         RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
     else
         RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp)
+
+    val caret = if (msg.isStreaming) " ▍" else ""
+    val displayed = msg.text + caret
+    val annotated = remember(displayed, highlight) {
+        buildHighlighted(displayed, highlight, textColor)
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -362,13 +448,42 @@ private fun ChatBubble(msg: ChatMessage) {
                 .claymorphism(backgroundColor = bubbleColor, shape = shape, elevation = 4.dp)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            val caret = if (msg.isStreaming) " ▍" else ""
             Text(
-                text = msg.text + caret,
+                text = annotated,
                 style = MaterialTheme.typography.bodyMedium,
                 color = textColor,
                 fontWeight = if (isUser) FontWeight.Medium else FontWeight.Normal,
             )
+        }
+    }
+}
+
+private fun buildHighlighted(
+    text: String,
+    highlight: String?,
+    baseColor: androidx.compose.ui.graphics.Color,
+): androidx.compose.ui.text.AnnotatedString {
+    if (highlight.isNullOrBlank()) return androidx.compose.ui.text.AnnotatedString(text)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        val lower = text.lowercase()
+        val needle = highlight.lowercase()
+        var i = 0
+        while (i < text.length) {
+            val idx = lower.indexOf(needle, i)
+            if (idx < 0) {
+                append(text.substring(i))
+                break
+            }
+            if (idx > i) append(text.substring(i, idx))
+            withStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    background = baseColor.copy(alpha = 0.25f),
+                    fontWeight = FontWeight.Bold,
+                )
+            ) {
+                append(text.substring(idx, idx + needle.length))
+            }
+            i = idx + needle.length
         }
     }
 }

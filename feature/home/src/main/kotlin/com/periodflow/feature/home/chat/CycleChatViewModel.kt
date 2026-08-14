@@ -81,6 +81,32 @@ class CycleChatViewModel @Inject constructor(
     private val _downloadProgress = MutableStateFlow<com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress?>(null)
     val downloadProgress: StateFlow<com.periodflow.feature.home.chat.voice.ModelDownloader.DownloadProgress?> = _downloadProgress.asStateFlow()
 
+    /** True when we've deferred a download because the user is on metered data. */
+    private val _pendingMeteredConfirm = MutableStateFlow(false)
+    val pendingMeteredConfirm: StateFlow<Boolean> = _pendingMeteredConfirm.asStateFlow()
+
+    /**
+     * Request a download. If the active network is metered, sets
+     * [pendingMeteredConfirm] instead and waits for the UI to confirm.
+     */
+    fun requestModelDownload() {
+        if (downloader.isNetworkMetered()) {
+            _pendingMeteredConfirm.value = true
+        } else {
+            startModelDownload()
+        }
+    }
+
+    /** Called by the confirmation dialog when the user accepts metered download. */
+    fun confirmMeteredDownload() {
+        _pendingMeteredConfirm.value = false
+        startModelDownload()
+    }
+
+    fun cancelMeteredDownload() {
+        _pendingMeteredConfirm.value = false
+    }
+
     fun startModelDownload(urlOverride: String? = null) {
         viewModelScope.launch {
             downloader.download(urlOverride).collect { p ->

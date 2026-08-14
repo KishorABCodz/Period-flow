@@ -3,6 +3,7 @@ package com.periodflow.feature.home.chat.voice
 import android.app.DownloadManager
 import android.content.Context
 import android.database.Cursor
+import android.net.ConnectivityManager
 import android.net.Uri
 import com.periodflow.core.ai.voice.GemmaModelManager
 import kotlinx.coroutines.Dispatchers
@@ -92,5 +93,13 @@ class ModelDownloader(
     fun purgeModel(): Boolean {
         val f: File = modelManager.modelFile
         return if (f.exists()) f.delete() else true
+    }
+
+    /** True when the active network is billed / metered (cellular, hotspot, etc.). */
+    fun isNetworkMetered(): Boolean = try {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        cm.isActiveNetworkMetered
+    } catch (_: Exception) {
+        false
     }
 }

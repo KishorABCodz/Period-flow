@@ -202,6 +202,19 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Voice model (Gemma) health check
+        Text(
+            text = "Voice Model",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+        VoiceModelHealthRow(
+            status = uiState.voiceModel,
+            onRemove = viewModel::removeVoiceModel,
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Developer Tools
         Text(
             text = "Developer Tools",
