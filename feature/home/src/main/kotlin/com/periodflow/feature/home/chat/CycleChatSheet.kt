@@ -50,6 +50,7 @@ fun CycleChatSheet(
     val hasGemmaModel by viewModel.hasGemmaModel.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val pendingMeteredConfirm by viewModel.pendingMeteredConfirm.collectAsStateWithLifecycle()
+    val hasDeferredDownload by viewModel.hasDeferredDownload.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(

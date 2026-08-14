@@ -107,6 +107,25 @@ class CycleChatViewModel @Inject constructor(
         _pendingMeteredConfirm.value = false
     }
 
+    /**
+     * User picked "Wait for Wi-Fi" in the metered warning dialog. Enqueue a
+     * WorkManager job that will trigger the download when an unmetered
+     * network appears.
+     */
+    fun deferModelDownloadToWifi() {
+        _pendingMeteredConfirm.value = false
+        com.periodflow.feature.home.chat.voice.ModelDownloadScheduler.enqueue(appContext)
+    }
+
+    fun cancelDeferredDownload() {
+        com.periodflow.feature.home.chat.voice.ModelDownloadScheduler.cancel(appContext)
+    }
+
+    /** True while a deferred Wi-Fi download is enqueued or running. */
+    val hasDeferredDownload: StateFlow<Boolean> =
+        com.periodflow.feature.home.chat.voice.ModelDownloadScheduler.observePending(appContext)
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+
     fun startModelDownload(urlOverride: String? = null) {
         viewModelScope.launch {
             downloader.download(urlOverride).collect { p ->

@@ -3,6 +3,7 @@ package com.periodflow.feature.settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -452,3 +453,69 @@ private fun ClayStepper(
         }
     }
 }
+
+@Composable
+private fun VoiceModelHealthRow(
+    status: VoiceModelStatus,
+    onRemove: () -> Unit,
+) {
+    val downloadedMb = (status.fileSizeBytes / (1024.0 * 1024.0))
+    val sizeText = if (status.fileSizeBytes > 0) "%.1f MB on device".format(downloadedMb) else "Not downloaded"
+    val stateColor = if (status.isDownloaded) MaterialTheme.colorScheme.tertiary
+    else MaterialTheme.colorScheme.onSurfaceVariant
+
+    ClayCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                androidx.compose.foundation.Canvas(modifier = Modifier.size(10.dp)) {
+                    drawCircle(
+                        color = stateColor,
+                        radius = size.minDimension / 2f,
+                        center = Offset(size.width / 2f, size.height / 2f),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Gemma-2 2B (fast provider)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = sizeText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (status.isDownloaded) {
+                ClayButton(
+                    onClick = onRemove,
+                    backgroundColor = MaterialTheme.colorScheme.error,
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.height(40.dp),
+                ) {
+                    Text(
+                        text = "Remove model",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onError,
+                    )
+                }
+            } else {
+                Text(
+                    text = if (status.configuredUrl.isNullOrBlank())
+                        "Add GEMMA_MODEL_URL in local.properties to enable the on-device fast reply."
+                    else "Enable Voice Mode in Bloom to download it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+

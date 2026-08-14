@@ -14,4 +14,7 @@ dependencies {
     implementation(project(":core:ai"))
     implementation(libs.activity.compose)
     implementation(libs.kotlinx.datetime)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
 }
