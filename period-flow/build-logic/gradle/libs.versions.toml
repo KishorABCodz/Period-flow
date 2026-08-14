@@ -1,0 +1,8 @@
+# Workaround for version catalog access in convention plugins
+# These are compileOnly dependencies referenced in build.gradle.kts
+[libraries]
+android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version = "8.6.0" }
+kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version = "2.0.0" }
+compose-gradle-plugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version = "2.0.0" }
+ksp-gradle-plugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version = "2.0.0-1.0.21" }
+room-gradle-plugin = { group = "androidx.room", name = "room-gradle-plugin", version = "2.6.1" }

@@ -1,0 +1,20 @@
+plugins {
+    id("periodflow.android.feature")
+}
+
+android {
+    namespace = "com.periodflow.feature.home"
+}
+
+dependencies {
+    implementation(project(":core:database"))
+    implementation(project(":core:datastore"))
+    implementation(project(":core:domain"))
+    implementation(project(":core:health-analysis"))
+    implementation(project(":core:ai"))
+    implementation(libs.activity.compose)
+    implementation(libs.kotlinx.datetime)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
+}

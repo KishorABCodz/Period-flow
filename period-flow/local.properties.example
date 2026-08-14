@@ -1,0 +1,15 @@
+# PeriodFlow — Local properties (DO NOT COMMIT)
+#
+# 1. Copy this file to `local.properties` (already in .gitignore).
+# 2. Fill in the values below.
+#
+# --- Gemini (required for AI features) ---
+# Free key at: https://aistudio.google.com/apikey
+# GEMINI_API_KEY=your_key_here
+#
+# --- On-device Gemma model (optional, enables Bloom's fast voice provider) ---
+# Direct download URL to a Gemma-2 2B `.bin` (CPU int4) file the app can fetch
+# to `filesDir/gemma-2b-it-cpu-int4.bin`. If empty, the voice companion falls
+# back to the deterministic heuristic provider — no ML, still fully functional.
+# Get the model at https://www.kaggle.com/models/google/gemma-2 or Hugging Face.
+# GEMMA_MODEL_URL=https://example.com/gemma-2b-it-cpu-int4.bin
