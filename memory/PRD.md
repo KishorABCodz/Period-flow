@@ -1,21 +1,6 @@
 # PeriodFlow — AI Integration & UI/UX Audit
 
-## Original Problem Statement
-Android Kotlin UI/UX expert audit with zero-hallucination protocol on the
-existing `KishorABCodz/Period-flow` repo, plus Gemini 3 Flash integration
-(AI Health Insights + Symptom Explainer). Then a second round of features:
-Streaming, Room cache, AI in PDF, Cycle Chat.
-
-## Architecture (verified, not assumed)
-- Kotlin 2.0.0, AGP 8.6.0, compileSdk 36, minSdk 26.
-- Jetpack Compose (BOM 2024.05), Material 3, Hilt 2.51.1, Room 2.6.1,
-  DataStore, WorkManager, Biometric, Vico, kotlinx-datetime.
-- Multi-module: `app`, `core:{common,domain,database,datastore,ui,security,
-  health-analysis,network,notifications,export,ai(NEW)}`, `feature:{home,log,
-  stats,settings,onboarding,health-insights}`.
-- Convention plugins under `build-logic/convention`.
-
-## Implemented (Jan 2026)
+## Sessions implemented
 
 ### Session 1 — AI baseline + UI audit
 - New `core:ai` module (Gemini SDK 0.9.0, `gemini-2.5-flash`).
@@ -26,29 +11,36 @@ Streaming, Room cache, AI in PDF, Cycle Chat.
   `ClayButton` unified export, Onboarding progress dots, `ClayChip` long-press.
 
 ### Session 2 — Streaming, cache, PDF, chat
-1. **AI Streaming** — `streamInsightNarrative()` and `streamChatReply()`
-   return `Flow<AiStreamEvent>`. UI shows tokens live with a blinking caret.
-2. **Room cache** — new `ai_insight` table (single-row upsert),
-   `AiInsightDao`, `AiInsightCache` domain interface, `AiInsightCacheImpl`.
-   Bumped DB version 2→3 (fallbackToDestructiveMigration preserved).
-   Health Insights hydrates from cache instantly with a
-   "cached · refreshing" hint, then streams fresh text.
-3. **AI in PDF** — `ReportExporter.generatePdfReport(cycles, days, analysis, aiNarrative)`.
-   Multi-page A4 renderer with word wrap, headings, and an "AI Personal
-   Insight" section.
-4. **Cycle Chat** — floating Sparkle FAB on Home opens
-   `CycleChatSheet` (streaming multi-turn Gemini chat named "Bloom"),
-   with cycle-phase context.
+- Token streaming for insight + chat.
+- Room-cached insight (`ai_insight`, single-row upsert).
+- AI narrative rendered inside the exported PDF.
+- Cycle Chat (Bloom) bottom sheet from Home FAB.
 
-## User Setup Required
+### Session 3 — Chat history, cache invalidation, voice input
+- **Chat History** — new `chat_message` Room table; `ChatHistoryRepository`
+  interface + impl; `CycleChatViewModel` loads history on init, persists user
+  and assistant messages; Bloom greeting only shown on empty history; header
+  "Clear chat" icon calls `ChatHistoryRepository.clear()`.
+- **Cache Invalidation** — `AiInsightEntity` now stores `basedOnRiskScore`;
+  `HealthInsightsViewModel.analyzeHealth()` compares the fresh
+  `report.riskScore` to the cached score and clears the cache before
+  streaming a new narrative. `save()` records the current score.
+- **Voice Input** — `VoiceInputController` wraps Android's
+  `SpeechRecognizer`; a mic button in the chat composer requests
+  `RECORD_AUDIO` at runtime, streams partial results into the draft box, and
+  swaps to a red "Stop" state while listening. Manifest updated with
+  permission + `<queries>` block for the RecognitionService.
+- Database schema bumped `3 → 4` (existing `fallbackToDestructiveMigration`
+  handles the upgrade).
+
+## Setup
 1. `cp local.properties.example local.properties`
-2. Get free key at https://aistudio.google.com/apikey
-3. Add `GEMINI_API_KEY=your_key` to `local.properties`
-4. Sync Gradle & build
+2. Add `GEMINI_API_KEY=your_key` (https://aistudio.google.com/apikey).
+3. Sync Gradle & build.
 
-## Backlog / Next Actions
-- P1: cache TTL — invalidate the Room narrative if the underlying report
-  changes (`riskScore` diff).
-- P1: chat history persistence — currently in-memory only.
-- P2: rich Markdown rendering for AI answers (bullets, bold).
-- P2: Vertex AI Grounded search when medical topics appear in chat.
+## Backlog
+- P1: proper Room migrations (currently destructive fallback wipes DB on
+  upgrade). Add `Migration(3, 4)` when the app has real users.
+- P1: Markdown rendering for AI replies (bold, bullets).
+- P2: Attach recent symptoms/mood to `sendMessage` context for more relevant chat.
+- P2: On-device Whisper fallback if platform speech unavailable.
