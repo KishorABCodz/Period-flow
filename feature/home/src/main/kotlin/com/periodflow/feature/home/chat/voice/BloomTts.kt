@@ -3,15 +3,15 @@ package com.periodflow.feature.home.chat.voice
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import com.periodflow.core.ai.voice.BloomEmotion
 import java.util.Locale
 import java.util.UUID
 
 /**
- * Minimal wrapper around Android's built-in [TextToSpeech].
+ * Emotion-aware wrapper around Android's built-in [TextToSpeech].
  *
- * Two configurable "voices":
- *   - [speakFiller] uses a slightly faster, warmer rate for fast-filler lines.
- *   - [speakAnswer] uses a calm, default cadence for the grounded answer.
+ * The pitch/rate values live on [BloomEmotion] itself so both fast and slow
+ * legs of the voice companion pull from the same source of truth.
  */
 class BloomTts(context: Context) {
 
@@ -27,15 +27,16 @@ class BloomTts(context: Context) {
         }
     }
 
-    fun speakFiller(text: String) = enqueue(text, rate = 1.1f, pitch = 1.05f)
-
-    fun speakAnswer(text: String) = enqueue(text, rate = 1.0f, pitch = 1.0f)
-
-    private fun enqueue(text: String, rate: Float, pitch: Float) {
+    /**
+     * Speak the given [text] with pitch/rate derived from the [emotion].
+     * `isFiller = true` adds a small extra rate bump to keep the greeting punchy.
+     */
+    fun speakEmotive(text: String, emotion: BloomEmotion, isFiller: Boolean) {
         val engine = tts ?: return
         if (!ready || text.isBlank()) return
-        engine.setSpeechRate(rate)
-        engine.setPitch(pitch)
+        val rateBump = if (isFiller) 0.05f else 0f
+        engine.setPitch(emotion.pitch)
+        engine.setSpeechRate((emotion.rate + rateBump).coerceIn(0.6f, 1.6f))
         engine.speak(text, TextToSpeech.QUEUE_ADD, null, UUID.randomUUID().toString())
     }
 
@@ -50,7 +51,6 @@ class BloomTts(context: Context) {
         ready = false
     }
 
-    /** Optional: subscribe to per-utterance done/error events. */
     fun setListener(
         onStart: (String) -> Unit = {},
         onDone: (String) -> Unit = {},

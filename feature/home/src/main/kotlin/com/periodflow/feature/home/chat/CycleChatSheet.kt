@@ -316,7 +316,7 @@ private fun ChatContent(
                 onClick = {
                     val toSend = draft
                     draft = ""
-                    if (voiceMode) onSendVoice(toSend) else onSendText(toSend)
+                    if (voiceModeEnabled) onSendVoice(toSend) else onSendText(toSend)
                 },
                 backgroundColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(56.dp),
@@ -372,3 +372,62 @@ private fun ChatBubble(msg: ChatMessage) {
         }
     }
 }
+
+@Composable
+private fun ModelDownloadBanner(
+    progress: ModelDownloader.DownloadProgress,
+    onDismiss: () -> Unit,
+) {
+    val (title, subtitle, ratio, isError) = when (progress) {
+        is ModelDownloader.DownloadProgress.Running -> {
+            val mb = (progress.downloadedBytes / (1024 * 1024)).toInt()
+            val totalMb = (progress.totalBytes / (1024 * 1024)).toInt().coerceAtLeast(0)
+            Quadruple(
+                "Downloading Bloom's voice model…",
+                if (totalMb > 0) "$mb MB of $totalMb MB" else "$mb MB so far",
+                progress.ratio,
+                false,
+            )
+        }
+        ModelDownloader.DownloadProgress.Success ->
+            Quadruple("Voice model ready", "Bloom will speak with warmth from now on.", 1f, false)
+        is ModelDownloader.DownloadProgress.Failed ->
+            Quadruple("Model download failed", progress.reason, 0f, true)
+    }
+
+    val bg = if (isError) MaterialTheme.colorScheme.errorContainer
+    else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+    val fg = if (isError) MaterialTheme.colorScheme.onErrorContainer
+    else MaterialTheme.colorScheme.onSurface
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .claymorphism(backgroundColor = bg, shape = RoundedCornerShape(16.dp), elevation = 4.dp)
+            .padding(14.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleSmall, color = fg)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = fg)
+            }
+            TextButton(onClick = onDismiss) { Text("Dismiss", color = fg) }
+        }
+        if (progress is ModelDownloader.DownloadProgress.Running) {
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { ratio },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.tertiary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+        }
+    }
+}
+
+private data class Quadruple<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)

@@ -4,7 +4,6 @@ import android.app.DownloadManager
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
-import androidx.core.net.toUri
 import com.periodflow.core.ai.voice.GemmaModelManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -49,7 +48,7 @@ class ModelDownloader(
         val destFile = modelManager.modelFile
         if (destFile.exists()) destFile.delete()
 
-        val request = DownloadManager.Request(url.toUri()).apply {
+        val request = DownloadManager.Request(Uri.parse(url)).apply {
             setTitle("PeriodFlow · Voice model")
             setDescription("Downloading Bloom's on-device fast model")
             setDestinationUri(Uri.fromFile(destFile))
